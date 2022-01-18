@@ -52,8 +52,14 @@ public class EspressoTask extends BrowserStackTask {
 
   private void uploadTestSuite(Path testApkPath) throws Exception {
     try {
-      HttpURLConnection con = HttpUtils
-          .sendPost(getHost() + Constants.TEST_SUITE_UPLOAD_PATH, basicAuth(), null, testApkPath.toString());
+      final String customId = this.customId;
+      HttpURLConnection con = HttpUtils.sendPostApp(
+              isDebug,
+              getHost() + Constants.TEST_SUITE_UPLOAD_PATH,
+              basicAuth(),
+              testApkPath.toString(),
+              customId
+      );
       int responseCode = con.getResponseCode();
       System.out.println("TestSuite upload Response Code : " + responseCode);
 
@@ -73,8 +79,11 @@ public class EspressoTask extends BrowserStackTask {
 
   private void executeTest() throws Exception {
     try {
-      HttpURLConnection con = HttpUtils
-          .sendPost(getHost() + Constants.BUILD_PATH, basicAuth(), constructBuildParams(), null);
+      HttpURLConnection con = HttpUtils.sendPostBody(
+              getHost() + Constants.BUILD_PATH,
+              basicAuth(),
+              constructBuildParams()
+      );
       int responseCode = con.getResponseCode();
       System.out.println("Response Code : " + responseCode);
 

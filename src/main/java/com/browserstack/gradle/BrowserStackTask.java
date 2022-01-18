@@ -1,6 +1,5 @@
 package com.browserstack.gradle;
 
-import com.android.annotations.NonNull;
 import com.browserstack.httputils.HttpUtils;
 import com.browserstack.json.JSONObject;
 import java.net.HttpURLConnection;
@@ -16,7 +15,6 @@ import java.util.Map;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.tasks.Input;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 public class BrowserStackTask extends DefaultTask {
 
@@ -24,10 +22,12 @@ public class BrowserStackTask extends DefaultTask {
   public static final String KEY_FILE_TEST = "testApkPath";
 
   @Input
-  private String username, accessKey;
+  protected String username, accessKey, customId;
 
   @Input
   private String app, host;
+
+  protected boolean isDebug;
 
   private String appVariantBaseName = "debug";
 
@@ -49,6 +49,14 @@ public class BrowserStackTask extends DefaultTask {
 
   public void setAccessKey(String accessKey) {
     this.accessKey = accessKey;
+  }
+
+  public void setCustomId(String customId) {
+    this.customId = customId;
+  }
+
+  public void setDebug(boolean debug) {
+    isDebug = debug;
   }
 
   public String getHost() {
@@ -74,7 +82,14 @@ public class BrowserStackTask extends DefaultTask {
           @NotNull Path debugApkPath
   ) throws Exception {
     try {
-      HttpURLConnection con = HttpUtils.sendPost(host + appUploadURLPath, basicAuth(), null, debugApkPath.toString());
+      final String customId = this.customId;
+      HttpURLConnection con = HttpUtils.sendPostApp(
+              isDebug,
+              host + appUploadURLPath,
+              basicAuth(),
+              debugApkPath.toString(),
+              customId
+      );
       int responseCode = con.getResponseCode();
       System.out.println("App upload Response Code : " + responseCode);
 
@@ -84,7 +99,13 @@ public class BrowserStackTask extends DefaultTask {
         app = (String) response.get("app_url");
         return app;
       } else {
-        throw new Exception("App upload failed");
+        throw new Exception(
+                String.format(
+                        "App upload failed (%d): %s",
+                        responseCode,
+                        con.getResponseMessage()
+                )
+        );
       }
     } catch (Exception e) {
 //      e.printStackTrace();
