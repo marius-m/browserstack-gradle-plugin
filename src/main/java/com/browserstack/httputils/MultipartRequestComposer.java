@@ -1,5 +1,7 @@
 package com.browserstack.httputils;
 
+import com.android.annotations.NonNull;
+import com.browserstack.json.JSONObject;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -7,7 +9,10 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Generates a multipart request
@@ -15,7 +20,7 @@ import java.util.*;
 public class MultipartRequestComposer {
 
     private static final String KEY_FILE = "file";
-    private static final String KEY_CUSTOM_ID = "custom_id";
+    private static final String KEY_DATA = "data";
 
     @NotNull private final OutputWriter writer;
     @NotNull private final String boundary;
@@ -44,8 +49,7 @@ public class MultipartRequestComposer {
             if (entry.getValue() instanceof File) {
                 final File entryAsFile = ((File) entry.getValue());
                 final Path filePath = entryAsFile.toPath();
-                //final String contentType = Files.probeContentType(filePath);
-                final String contentType = "Content-Type: application/octet-stream";
+                final String contentType = "application/octet-stream";
                 writer.write(
                         String.format(
                                 "name=\"%s\"; filename=\"%s\"\r\nContent-Type: %s\r\n\r\n",
@@ -56,7 +60,22 @@ public class MultipartRequestComposer {
                 );
                 writer.writeBytes(Files.readAllBytes(filePath));
                 writer.write("\r\n");
-            } else {
+            }
+            if (entry.getValue() instanceof Map) {
+                final Map<String, String> entryAsDataMap = ((Map<String, String>) entry.getValue());
+                final JSONObject internalEntriesAsJson = new JSONObject();
+                for (Map.Entry<String, String> internalEntry : entryAsDataMap.entrySet()) {
+                    internalEntriesAsJson.put(internalEntry.getKey(), internalEntry.getValue());
+                }
+                writer.write(
+                        String.format(
+                                "name=\"%s\"\r\n\r\n%s\r\n",
+                                entry.getKey(),
+                                internalEntriesAsJson.toString()
+                        )
+                );
+            }
+            if (entry.getValue() instanceof String) {
                 final String entryAsString = ((String) entry.getValue());
                 writer.write(
                         String.format(
@@ -85,6 +104,8 @@ public class MultipartRequestComposer {
         @NotNull private final RequestBoundary boundary;
         @NotNull private final List<OutputWriter> writers = new ArrayList<>();
         @NotNull private final Map<String, Object> dataMap = new HashMap<>();
+        @NotNull private final Map<String, String> propertyMap = new HashMap<>();
+        private boolean wrapProperiesAsInternalDataMap = false;
 
         public static Builder newInstance(
                 @NotNull RequestBoundary requestBoundary
@@ -111,14 +132,44 @@ public class MultipartRequestComposer {
             return this;
         }
 
-        public Builder putCustomId(@Nullable String customId) {
-            if (customId != null) {
-                this.dataMap.put(KEY_CUSTOM_ID, customId);
+        public Builder putKeyValue(
+                @NonNull String key,
+                @Nullable String value
+        ) {
+            if (value != null) {
+                this.propertyMap.put(key, value);
             }
             return this;
         }
 
+        public Builder putProperties(
+                @NonNull Map<String, String> properties
+        ) {
+            for (Map.Entry<String, String> entry : properties.entrySet()) {
+                if (entry.getValue() != null) {
+                    this.propertyMap.put(entry.getKey(), entry.getValue());
+                }
+            }
+            return this;
+        }
+
+        /**
+         * Indicates to either wrap all additional properties as an internal data map
+         * or use as regular properties when forming a reuqest
+         * @param isWrapEnabled is wrapping enabled
+         * @return builder
+         */
+        public Builder wrapProperiesAsInternalDataMap(boolean isWrapEnabled) {
+            this.wrapProperiesAsInternalDataMap = isWrapEnabled;
+            return this;
+        }
+
         public MultipartRequestComposer build() {
+            if (wrapProperiesAsInternalDataMap) {
+                this.dataMap.put(KEY_DATA, this.propertyMap);
+            } else {
+                this.dataMap.putAll(propertyMap);
+            }
             return new MultipartRequestComposer(this);
         }
     }

@@ -2,6 +2,8 @@ package com.browserstack.gradle;
 
 import com.browserstack.httputils.HttpUtils;
 import com.browserstack.json.JSONObject;
+
+import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,6 +20,7 @@ import org.jetbrains.annotations.NotNull;
 
 public class BrowserStackTask extends DefaultTask {
 
+  public static final String KEY_EXTRA_CUSTOM_ID = "custom_id";
   public static final String KEY_FILE_DEBUG = "debugApkPath";
   public static final String KEY_FILE_TEST = "testApkPath";
 
@@ -77,18 +80,29 @@ public class BrowserStackTask extends DefaultTask {
     return params;
   }
 
+  /**
+   * Uploads app and binds properties to it
+   * @param wrapPropsAsInternal indicates if additional properties should be wrapped as internal data map
+   * @param appUploadURLPath remote path to upload app to
+   * @param debugApkPath app file path
+   * @return raw request response
+   * @throws IOException if uploading fails
+   */
   public String uploadApp(
+          boolean wrapPropsAsInternal,
           @NotNull String appUploadURLPath,
           @NotNull Path debugApkPath
-  ) throws Exception {
+  ) throws IOException {
     try {
-      final String customId = this.customId;
+      final Map<String, String> extraProperties = new HashMap<>();
+      extraProperties.put(KEY_EXTRA_CUSTOM_ID, this.customId);
       HttpURLConnection con = HttpUtils.sendPostApp(
               isDebug,
+              wrapPropsAsInternal,
               host + appUploadURLPath,
               basicAuth(),
               debugApkPath.toString(),
-              customId
+              extraProperties
       );
       int responseCode = con.getResponseCode();
       System.out.println("App upload Response Code : " + responseCode);
@@ -99,7 +113,7 @@ public class BrowserStackTask extends DefaultTask {
         app = (String) response.get("app_url");
         return app;
       } else {
-        throw new Exception(
+        throw new IOException(
                 String.format(
                         "App upload failed (%d): %s",
                         responseCode,
@@ -107,7 +121,7 @@ public class BrowserStackTask extends DefaultTask {
                 )
         );
       }
-    } catch (Exception e) {
+    } catch (IOException e) {
 //      e.printStackTrace();
       throw e;
     }
@@ -129,7 +143,7 @@ public class BrowserStackTask extends DefaultTask {
     return mostRecentPath;
   }
 
-  public Map<String, Path> locateApks(boolean ignoreTestPath) throws Exception {
+  public Map<String, Path> locateApks(boolean ignoreTestPath) throws IOException {
     Path debugApkPath;
     Path testApkPath;
     String dir = System.getProperty("user.dir");
@@ -152,12 +166,12 @@ public class BrowserStackTask extends DefaultTask {
     System.out.println("Most recent TestApp apk: " + testApkPath);
 
     if (debugApkPath == null) {
-      throw new Exception("unable to find DebugApp apk");
+      throw new IOException("unable to find DebugApp apk");
     }
 
     //Dont raise error for testApkPath if AppLive task
     if (!ignoreTestPath && testApkPath == null) {
-      throw new Exception("unable to find TestApp apk");
+      throw new IOException("unable to find TestApp apk");
     }
     Map<String, Path> apkFiles = new HashMap<>();
     apkFiles.put(KEY_FILE_DEBUG, debugApkPath);

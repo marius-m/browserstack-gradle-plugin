@@ -3,6 +3,7 @@
 import org.gradle.api.tasks.TaskAction;
 import java.io.FileReader;
 import java.net.HttpURLConnection;
+import java.util.HashMap;
 import java.util.Map;
 import java.nio.file.Path;
 import com.browserstack.json.JSONObject;
@@ -52,13 +53,16 @@ public class EspressoTask extends BrowserStackTask {
 
   private void uploadTestSuite(Path testApkPath) throws Exception {
     try {
-      final String customId = this.customId;
+      final boolean wrapPropsAsInternal = false;
+      final Map<String, String> extraProperties = new HashMap<>();
+      extraProperties.put(KEY_EXTRA_CUSTOM_ID, this.customId);
       HttpURLConnection con = HttpUtils.sendPostApp(
               isDebug,
+              wrapPropsAsInternal,
               getHost() + Constants.TEST_SUITE_UPLOAD_PATH,
               basicAuth(),
               testApkPath.toString(),
-              customId
+              extraProperties
       );
       int responseCode = con.getResponseCode();
       System.out.println("TestSuite upload Response Code : " + responseCode);
@@ -119,8 +123,13 @@ public class EspressoTask extends BrowserStackTask {
   void uploadAndExecuteTest() throws Exception {
     verifyParams();
     final boolean ignoreTestPath = false;
+    final boolean wrapPropsAsInternal = false;
     Map<String, Path> apkFiles = locateApks(ignoreTestPath);
-    uploadApp(Constants.APP_AUTOMATE_ESPRESSO_UPLOAD_PATH, apkFiles.get(BrowserStackTask.KEY_FILE_DEBUG));
+    uploadApp(
+            wrapPropsAsInternal,
+            Constants.APP_AUTOMATE_ESPRESSO_UPLOAD_PATH,
+            apkFiles.get(BrowserStackTask.KEY_FILE_DEBUG)
+    );
     uploadTestSuite(apkFiles.get(BrowserStackTask.KEY_FILE_TEST));
     executeTest();
   }
